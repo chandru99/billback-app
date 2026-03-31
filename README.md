@@ -311,6 +311,76 @@ Users can now dispute any line item on the bill — not just the ones the AI fla
 
 ---
 
+---
+
+## Context — Chandra, 30th March 2026 (Version 3)
+
+### 10. Two-Pass AI Pipeline (Non-Determinism Fix)
+
+**Problem:** Different users uploading the same bill received different error classifications and different weighted RPS scores. Root cause: a single-pass prompt asked Claude to simultaneously read the raw document AND apply medical billing knowledge to classify errors — two distinct tasks that compounded each other's variance.
+
+**Solution:** Refactored `lib/claude.ts` into a two-pass architecture that separates extraction from classification.
+
+**Pass 1 — Extract (`runPass1Image` / `runPass1Text`)**
+- Input: raw document (image bytes or plain text)
+- Output: `RawBillExtraction` — structured JSON of line items exactly as they appear on the bill (CPT, description, provider, date, billed amount, ICD-10, units)
+- No error classification whatsoever — pure transcription
+- Near-deterministic at `temperature: 0` because it is only reading numbers and text already on the page
+
+**Pass 2 — Classify (`runPass2`)**
+- Input: `RawBillExtraction` JSON from Pass 1 (structured text — no image, cheap)
+- Output: `ClassifiedLineItem[]` — one classification per line item
+- Applies NCCI edits, AMA E/M guidelines, commercial rate benchmarks
+- Explicit decision rules in the system prompt eliminate the most common borderline cases:
+  - Same CPT + same date + same provider → always `duplicate`, never `upcoding`
+  - Billed > 150% commercial rate + in-network → always `fee-schedule`, not `upcoding`
+  - `upcoding` reserved exclusively for E/M code complexity disputes
+
+**Key benefits:**
+- Pass 1 variance (misreading numbers) and Pass 2 variance (misclassifying errors) are now independent and measurable
+- Re-classify with an updated prompt without re-parsing the document
+- Enables per-CPT caching in future (cache key = `hash(cpt + billed + provider + date)`)
+- Rule-based duplicate detection can pre-empt the AI call entirely for that error class
+
+**New types added to `lib/types.ts`:** `RawLineItem`, `RawBillExtraction`, `ClassifiedLineItem`
+
+**Files changed:** `lib/claude.ts`, `lib/types.ts`
+
+---
+
+### 11. Staged Upload — Parse & Audit Bill Button
+
+Previously, dropping or selecting a file immediately triggered the API call with no user confirmation. Now the upload flow has an explicit staging step:
+
+1. User drops or selects a file → file is **staged** (stored in state, nothing sent to API)
+2. A confirmation card appears showing the filename, file size, and a **"Parse & Audit Bill"** button
+3. User clicks the button → two-pass pipeline starts
+4. While processing, a two-step progress indicator shows:
+   - **Pass 1** dot active: "Extracting line items... Reading CPT codes, amounts, and providers from your document"
+   - **Pass 2** dot active: "Classifying billing errors... Applying NCCI edits, AMA guidelines, and commercial rate benchmarks"
+5. A "Remove" link lets the user clear the staged file and start over
+
+The demo button flow is unchanged.
+
+**Files changed:** `app/page.tsx`
+
+---
+
+### 12. Architecture Document
+
+Added `ARCHITECTURE.md` at the project root with:
+- Full end-to-end request flow diagram (ASCII)
+- Two-pass pipeline design rationale and comparison to the single-pass approach
+- RPS scoring engine internals (logistic regression formula, training data summary)
+- Complete data flow with TypeScript type chain
+- Pages and components reference
+- Key design decisions table with rationale
+- External dependencies table
+
+**Files changed:** `ARCHITECTURE.md` (new)
+
+---
+
 ### 9. Mobile Responsiveness
 Made the entire app responsive for mobile screens while leaving the desktop layout completely undisturbed. All mobile rules use Tailwind `md:` breakpoints as overrides so the desktop experience is pixel-identical to before.
 

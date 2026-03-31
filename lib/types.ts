@@ -1,3 +1,34 @@
+// ── Pass 1: raw extraction (no AI classification) ────────────────────────────
+export interface RawLineItem {
+  cpt: string
+  desc: string
+  provider: string
+  date: string
+  billed: number
+  icd10?: string
+  units?: number
+}
+
+export interface RawBillExtraction {
+  patientName: string
+  dateOfService: string
+  facility: string
+  lineItems: RawLineItem[]
+}
+
+// ── Pass 2: classification (AI error detection per line item) ─────────────────
+export interface ClassifiedLineItem {
+  cpt: string
+  error: ErrorType
+  errorClass: ErrorClass
+  allowable: number
+  overcharge: number
+  details: string
+  letterContext: string | null
+  claudeConfidence: ClaudeConfidence
+  ambiguous: boolean
+}
+
 export type ErrorType = 'Upcoding' | 'Duplicate Charge' | 'Unbundling' | 'Fee Schedule Violation' | 'None'
 export type ErrorClass = 'upcoding' | 'duplicate' | 'unbundling' | 'fee-schedule' | 'none'
 export type RPSClass = 'high' | 'med' | 'low'

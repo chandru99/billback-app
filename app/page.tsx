@@ -27,16 +27,22 @@ export default function HomePage() {
   const [selectedEmployer, setSelectedEmployer] = useState(EMPLOYERS[0])
   const [dragging, setDragging] = useState(false)
   const [uploading, setUploading] = useState(false)
-  const [uploadedFileName, setUploadedFileName] = useState('')
+  // Staged file — set on drop/select, processed only when user clicks Parse button
+  const [stagedFile, setStagedFile] = useState<File | null>(null)
+  // Two-pass status shown while processing
+  const [parseStatus, setParseStatus] = useState<'idle' | 'extracting' | 'classifying'>('idle')
 
   const processFile = useCallback(async (file: File) => {
     setUploading(true)
-    setUploadedFileName(file.name)
+    setParseStatus('extracting')
     try {
       if (file.type === 'application/pdf' || file.type.startsWith('image/')) {
         const reader = new FileReader()
         reader.onload = async (e) => {
           const base64 = (e.target?.result as string).split(',')[1]
+          // Small delay so the UI can show "Extracting line items..." before the fetch blocks
+          await new Promise(r => setTimeout(r, 100))
+          setParseStatus('classifying')
           const res = await fetch('/api/parse-bill', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -49,12 +55,13 @@ export default function HomePage() {
           } else {
             alert(`Parse error: ${error}`)
             setUploading(false)
-            setUploadedFileName('')
+            setParseStatus('idle')
           }
         }
         reader.readAsDataURL(file)
       } else if (file.name.endsWith('.csv') || file.type === 'text/csv') {
         const text = await file.text()
+        setParseStatus('classifying')
         const res = await fetch('/api/parse-bill', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -67,23 +74,25 @@ export default function HomePage() {
         } else {
           alert(`Parse error: ${error}`)
           setUploading(false)
-          setUploadedFileName('')
+          setParseStatus('idle')
         }
       } else {
         alert('Please upload a PDF, image, or CSV file.')
         setUploading(false)
-        setUploadedFileName('')
+        setParseStatus('idle')
+        setStagedFile(null)
       }
     } catch (err) {
       console.error(err)
       alert('Upload failed. Check your API key and try again.')
       setUploading(false)
-      setUploadedFileName('')
+      setParseStatus('idle')
     }
   }, [selectedEmployer, router])
 
   const handleDemo = async () => {
     setUploading(true)
+    setParseStatus('classifying')
     try {
       const res = await fetch('/api/parse-bill', {
         method: 'POST',
@@ -98,15 +107,21 @@ export default function HomePage() {
     } catch (err) {
       console.error(err)
       setUploading(false)
+      setParseStatus('idle')
     }
   }
+
+  // Stage the file — do NOT process yet
+  const stageFile = useCallback((file: File) => {
+    setStagedFile(file)
+  }, [])
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     setDragging(false)
     const file = e.dataTransfer.files[0]
-    if (file) processFile(file)
-  }, [processFile])
+    if (file) stageFile(file)
+  }, [stageFile])
 
   return (
     <div className="min-h-screen bg-white flex">
@@ -212,36 +227,87 @@ export default function HomePage() {
           {/* Upload area */}
           <div className="mb-4">
             <label className="text-xs font-semibold text-[#0F1F3D] mb-2.5 block">Upload a Bill</label>
-            <label
-              onDragOver={e => { e.preventDefault(); setDragging(true) }}
-              onDragLeave={() => setDragging(false)}
-              onDrop={onDrop}
-              className={`flex flex-col items-center justify-center gap-3 border-2 border-dashed rounded-xl p-8 cursor-pointer transition-all ${
-                dragging
-                  ? 'border-[#0ABFBC] bg-[#0ABFBC]/04'
-                  : uploading && uploadedFileName
-                  ? 'border-[#0ABFBC] bg-[#0ABFBC]/04'
-                  : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 bg-white'
-              }`}
-            >
-              <input
-                type="file"
-                className="hidden"
-                accept=".pdf,.csv,.png,.jpg,.jpeg"
-                onChange={e => { const f = e.target.files?.[0]; if (f) processFile(f) }}
-              />
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${uploading && uploadedFileName ? 'bg-[#0ABFBC]/10' : 'bg-gray-100'}`}>
-                <Upload className={`w-4 h-4 ${uploading && uploadedFileName ? 'text-[#0ABFBC]' : 'text-[#6B82A0]'}`} />
+
+            {/* Drop zone — disabled once a file is staged or processing */}
+            {!stagedFile && !uploading && (
+              <label
+                onDragOver={e => { e.preventDefault(); setDragging(true) }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={onDrop}
+                className={`flex flex-col items-center justify-center gap-3 border-2 border-dashed rounded-xl p-8 cursor-pointer transition-all ${
+                  dragging ? 'border-[#0ABFBC] bg-[#0ABFBC]/04' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 bg-white'
+                }`}
+              >
+                <input
+                  type="file"
+                  className="hidden"
+                  accept=".pdf,.csv,.png,.jpg,.jpeg"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) stageFile(f) }}
+                />
+                <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center">
+                  <Upload className="w-4 h-4 text-[#6B82A0]" />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-semibold text-[#0F1F3D] mb-0.5">Drop your bill here or click to browse</p>
+                  <p className="text-xs text-[#6B82A0]">PDF, image, or CSV up to 10MB</p>
+                </div>
+              </label>
+            )}
+
+            {/* Staged file — ready to parse */}
+            {stagedFile && !uploading && (
+              <div className="border-2 border-[#0ABFBC] bg-[#0ABFBC]/[0.04] rounded-xl p-4">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-9 h-9 rounded-xl bg-[#0ABFBC]/10 flex items-center justify-center flex-shrink-0">
+                    <CheckCircle2 className="w-4 h-4 text-[#0ABFBC]" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-[#0F1F3D] truncate">{stagedFile.name}</p>
+                    <p className="text-xs text-[#6B82A0]">{(stagedFile.size / 1024).toFixed(0)} KB · Ready to audit</p>
+                  </div>
+                  <button
+                    onClick={() => setStagedFile(null)}
+                    className="text-[#6B82A0] hover:text-[#E53935] text-xs transition-colors flex-shrink-0"
+                  >
+                    Remove
+                  </button>
+                </div>
+                <button
+                  onClick={() => processFile(stagedFile)}
+                  className="w-full bg-[#0ABFBC] text-[#0F1F3D] rounded-xl py-3 text-sm font-bold hover:bg-[#07908E] transition-colors flex items-center justify-center gap-2"
+                >
+                  Parse &amp; Audit Bill
+                  <ArrowRight className="w-4 h-4" />
+                </button>
               </div>
-              <div className="text-center">
-                <p className="text-sm font-semibold text-[#0F1F3D] mb-0.5">
-                  {uploading && uploadedFileName
-                    ? `Processing ${uploadedFileName}...`
-                    : 'Drop your bill here or click to browse'}
-                </p>
-                <p className="text-xs text-[#6B82A0]">PDF, image, or CSV up to 10MB</p>
+            )}
+
+            {/* Processing state with two-pass progress */}
+            {uploading && (
+              <div className="border-2 border-[#0ABFBC]/40 bg-[#0ABFBC]/[0.04] rounded-xl p-6 flex flex-col items-center gap-3">
+                <div className="w-8 h-8 border-2 border-[#0ABFBC]/30 border-t-[#0ABFBC] rounded-full animate-spin" />
+                <div className="text-center">
+                  <p className="text-sm font-semibold text-[#0F1F3D] mb-0.5">
+                    {parseStatus === 'extracting' ? 'Pass 1 — Extracting line items...' : 'Pass 2 — Classifying billing errors...'}
+                  </p>
+                  <p className="text-xs text-[#6B82A0]">
+                    {parseStatus === 'extracting'
+                      ? 'Reading CPT codes, amounts, and providers from your document'
+                      : 'Applying NCCI edits, AMA guidelines, and commercial rate benchmarks'}
+                  </p>
+                </div>
+                {/* Progress dots */}
+                <div className="flex items-center gap-2 mt-1">
+                  <div className={`w-2 h-2 rounded-full transition-colors ${parseStatus === 'extracting' ? 'bg-[#0ABFBC]' : 'bg-[#0ABFBC]'}`} />
+                  <div className={`w-16 h-0.5 transition-colors ${parseStatus === 'classifying' ? 'bg-[#0ABFBC]' : 'bg-gray-200'}`} />
+                  <div className={`w-2 h-2 rounded-full transition-colors ${parseStatus === 'classifying' ? 'bg-[#0ABFBC]' : 'bg-gray-200'}`} />
+                </div>
+                <div className="flex justify-between w-36 text-[10px] text-[#6B82A0]">
+                  <span>Extract</span>
+                  <span>Classify</span>
+                </div>
               </div>
-            </label>
+            )}
           </div>
 
           {/* Divider */}
@@ -259,7 +325,7 @@ export default function HomePage() {
               hover:bg-[#1A2D5A] disabled:opacity-50 disabled:cursor-not-allowed
               transition-all flex items-center justify-center gap-2.5 group"
           >
-            {uploading && !uploadedFileName
+            {uploading && parseStatus === 'classifying' && !stagedFile
               ? 'Loading demo...'
               : `Run demo: ${selectedEmployer.name}`}
             <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
