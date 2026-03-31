@@ -401,3 +401,149 @@ Made the entire app responsive for mobile screens while leaving the desktop layo
 - **`app/dispute/page.tsx`** — On mobile, a **tab bar** at the top switches between "Select Claims" and "Generate / View Letter" panels (stacked, full-width). On desktop the original side-by-side layout is preserved. Hover tooltip hidden on mobile (touch devices cannot hover). `DisputeLetter` component padding reduced on mobile (`px-6 py-8 md:px-14 md:py-12`).
 
 - **`app/page.tsx`** — Landing page was already responsive (marketing panel uses `hidden lg:flex`); no changes needed.
+
+---
+
+## Known Issues — Handoff Notes for Next Developer
+
+**Status as of 30th March 2026. Development paused. The issues below must be resolved before this product is production-ready.**
+
+---
+
+### Issue 1 — RPS Engine gives 100% score on all flagged claims (CRITICAL)
+
+**File:** `lib/rps.ts` — `extractFeatures()` function
+
+**Root cause — two bugs compounding each other:**
+
+**Bug A — `hasGuidelineCitation` always fires**
+The keyword detection list includes `'cpt'` and `'commercial'`. The Pass 2 system prompt in `lib/claude.ts` explicitly instructs Claude to always write details mentioning CPT codes and commercial rates, so every single `details` string matches these keywords. The guideline score boost fires on 100% of claims when it should only fire when a specific rule (NCCI edit number, Fair Health benchmark, AMA guideline section) is actually cited.
+
+Fix: Remove `'cpt'`, `'per'`, `'commercial'` from the keyword list. Replace with unambiguous specific terms only: `'ncci edit'`, `'fair health'`, `'80th percentile'`, `'ama guideline'`, `'bundling edit'`.
+
+```ts
+// lib/rps.ts — extractFeatures()
+// BROKEN (current):
+const hasGuidelineCitation =
+  details.includes('ncci') || details.includes('ama') || details.includes('cpt') ||
+  details.includes('per') || details.includes('bundl') || details.includes('edit') ||
+  details.includes('guideline') || details.includes('commercial') ||
+  details.includes('fair health') || details.includes('benchmark')
+
+// FIXED:
+const hasGuidelineCitation =
+  details.includes('ncci edit') || details.includes('ama guideline') ||
+  details.includes('ama cpt') || details.includes('bundling edit') ||
+  details.includes('fair health') || details.includes('80th percentile') ||
+  details.includes('coding guideline') || details.includes('benchmark')
+```
+
+**Bug B — `billedToAllowableRatio` blows up for duplicate and unbundling claims**
+Pass 2 correctly returns `allowable: 0` for duplicate and unbundling claims (charge should not exist). The feature extractor falls back to `allowable = 1`, producing `billedToAllowableRatio = billed / 1 = 425` (or whatever the billed amount is). Training average for this ratio is ~1.5. The delta `(425 - 1.5) × weight 0.9 = 381` extra log-odds. `sigmoid(381) = 100%`.
+
+Fix: Use a capped sentinel value of `3.0` for zero-allowable claims, and cap all ratios at `5.0` to prevent future blow-up:
+
+```ts
+// lib/rps.ts — extractFeatures()
+// BROKEN (current):
+const allowable = claim.allowable > 0 ? claim.allowable : 1
+const billedToAllowable = claim.errorClass === 'unbundling' ? billed : billed / allowable
+
+// FIXED:
+let billedToAllowable: number
+if (claim.errorClass === 'duplicate' || claim.errorClass === 'unbundling') {
+  billedToAllowable = 3.0 // sentinel: fully disallowed, stays within trained range
+} else if (claim.allowable > 0) {
+  billedToAllowable = Math.min(5.0, billed / claim.allowable)
+} else {
+  billedToAllowable = 3.0
+}
+```
+
+**Bug C — `providerInNetwork` always true for fee-schedule claims**
+`claim.errorClass === 'fee-schedule'` is hardcoded as a condition for `providerInNetwork = true`. This means every fee-schedule claim gets the in-network score boost regardless of what the bill actually says.
+
+Fix: Remove the errorClass condition. Only infer network status from explicit text:
+
+```ts
+// lib/rps.ts — extractFeatures()
+// BROKEN (current):
+const providerInNetwork =
+  details.includes('in-network') || details.includes('contracted') ||
+  details.includes('contract') || claim.errorClass === 'fee-schedule'
+
+// FIXED:
+const providerInNetwork =
+  details.includes('in-network') || details.includes('in network') ||
+  details.includes('contracted rate') || details.includes('network provider')
+```
+
+**Why this was hidden before v3:** The single-pass Claude prompt was imprecise about allowable amounts (often returning `$25–50` instead of `$0` for duplicates) and less prescriptive about language (so `cpt`/`commercial` appeared in only ~60% of details strings). The two-pass architecture made Claude more consistent and correct, which exposed all three latent bugs simultaneously.
+
+---
+
+### Issue 2 — RPS Scoring Architecture is a ceiling (DESIGN DEBT)
+
+**File:** `lib/rps.ts`
+
+The current engine is a hand-tuned logistic regression on 400 synthetic training records. It works as a proof of concept but has a hard ceiling on accuracy because:
+
+1. **Logistic regression is linear** — cannot capture interaction effects (e.g. "high anomaly + in-network + large amount" should compound, not add linearly)
+2. **400 synthetic records is too small** — XGBoost needs 2,000–5,000+ records per class to outperform a simpler model
+3. **No anomaly detection** — unusual claims that don't fit a known error pattern get scored against the nearest class base rate rather than flagged as anomalous
+4. **Feature inference from text is fragile** — `hasGuidelineCitation` and `providerInNetwork` are inferred by keyword matching on the `details` string, which is Claude-generated and can vary
+
+**Recommended replacement architecture (researched, not yet implemented):**
+
+```
+ClassifiedLineItem[]
+    ├──► Rule Engine (NCCI table, exact duplicate check)  → RuleFlags[]
+    ├──► XGBoost Classifier (error type + features)       → ClassifierOutput[]
+    └──► Isolation Forest (anomaly detection)             → AnomalyScore[]
+         ↓
+    Feature merger
+         ↓
+    XGBoost RPS Scorer (replaces logistic regression)
+         ↓
+    { rps, confidence, SHAP rationale }
+```
+
+Key decisions needed before building:
+- XGBoost cannot run natively in Next.js — needs either ONNX Runtime (`onnxruntime-node`) or a Python FastAPI microservice. ONNX is recommended (no separate service, deployable to Vercel).
+- Training data must be expanded to 5,000+ records per class before XGBoost adds meaningful value over logistic regression.
+- SHAP values replace the current hand-written rationale strings — each factor gets a numeric contribution that auto-generates the explanation.
+- Real historical dispute outcomes (when available) should replace synthetic data entirely. Synthetic data teaches the model patterns you put in, not patterns from reality.
+
+See `ARCHITECTURE.md` for the full design diagram and rationale.
+
+---
+
+### Issue 3 — No caching — same bill always re-calls Claude (COST / CONSISTENCY)
+
+**Files:** `app/api/parse-bill/route.ts`, `lib/claude.ts`
+
+Every upload — even the same bill uploaded twice — triggers two fresh Claude API calls (Pass 1 + Pass 2). This means:
+- API cost scales linearly with uploads, with no deduplication
+- Two users uploading the same bill may still get different Pass 2 classifications (residual variance at `temperature: 0` due to floating-point non-determinism in distributed inference)
+
+**Recommended fix:** Content-hash caching keyed on `SHA-256(bill_bytes)`. On Vercel, use Vercel KV (free tier). Cache the full `CaseData` object. Cache hit = no Claude call, zero variance, zero cost.
+
+---
+
+### Issue 4 — Session storage only — no persistence (ARCHITECTURE LIMITATION)
+
+All case data lives in `sessionStorage`. Closing the tab loses everything. There is no user account, no case history, no audit trail. This is intentional for demo speed but must be replaced before any real employer uses the product.
+
+Suggested path: Postgres (via Supabase or Vercel Postgres) with a `cases` table keyed on `(employerId, caseHash)`. The existing `CaseData` type maps cleanly to a JSON column.
+
+---
+
+### Issue 5 — Claude JSON parsing is fragile (MINOR — partially fixed)
+
+**File:** `lib/claude.ts` — `extractJSON()` helper
+
+The `extractJSON()` function introduced in v3 robustly extracts JSON from Claude's response by finding the first `{`/`[` and last `}`/`]`. This fixed the `"Expected double-quoted property name"` parse error that occurred when Claude prefixed its response with commentary.
+
+However, if Claude returns malformed JSON (truncated due to `max_tokens` being hit, or with a trailing comment inside the JSON body), `JSON.parse()` will still throw. No retry logic exists. The API route returns a 500 and the user sees a generic alert.
+
+Suggested fix: Wrap the parse in a try/catch that retries once with a higher `max_tokens` value before surfacing the error to the user.
