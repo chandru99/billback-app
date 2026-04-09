@@ -66,6 +66,7 @@ export default function ReviewPage() {
     if (!valid.length) { alert('Add at least one claim with a CPT code.'); return }
     setIdentifying(true)
     try {
+      const clinicalNotes = sessionStorage.getItem('billback_clinical_notes') || undefined
       const res = await fetch('/api/identify-errors', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -74,6 +75,7 @@ export default function ReviewPage() {
           dateOfService: parsedBill.dateOfService,
           facility: parsedBill.facility,
           claims: valid,
+          clinicalNotes,
         })
       })
       const { success, data, error } = await res.json()

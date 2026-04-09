@@ -5,7 +5,7 @@ export const maxDuration = 60
 
 export async function POST(req: NextRequest) {
   try {
-    const { patientName, dateOfService, facility, claims } = await req.json()
+    const { patientName, dateOfService, facility, claims, clinicalNotes } = await req.json()
 
     if (!claims || claims.length === 0) {
       return NextResponse.json({ success: false, error: 'No claims provided' }, { status: 400 })
@@ -14,7 +14,8 @@ export async function POST(req: NextRequest) {
     const data = await classifyAndBuildCase(
       claims,
       { patientName, dateOfService, facility },
-      'uploaded'
+      'uploaded',
+      clinicalNotes
     )
     return NextResponse.json({ success: true, data })
 

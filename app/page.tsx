@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Upload, ArrowRight, Shield, TrendingUp, FileSearch } from 'lucide-react'
+import { Upload, ArrowRight, Shield, TrendingUp, FileSearch, FileText, X } from 'lucide-react'
 
 const EMPLOYERS = [
   { id: 'meridian',  name: 'Meridian Corp.',         employees: '1,200', plan: 'Self-Insured PPO'  },
@@ -62,6 +62,7 @@ export default function HomePage() {
   const [uploadedFileName, setUploadedFileName] = useState('')
   const [pendingFile, setPendingFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [clinicalNotesFile, setClinicalNotesFile] = useState<File | null>(null)
   const [statsVisible, setStatsVisible] = useState(false)
   const statsRef = useRef<HTMLDivElement>(null)
 
@@ -83,10 +84,18 @@ export default function HomePage() {
     }
   }, [])
 
+  const storeClinicalNotes = useCallback(async (notesFile: File) => {
+    const text = await notesFile.text()
+    sessionStorage.setItem('billback_clinical_notes', text.slice(0, 20000))
+  }, [])
+
   const processFile = useCallback(async (file: File) => {
     setUploading(true)
     setUploadedFileName(file.name)
     try {
+      if (clinicalNotesFile) await storeClinicalNotes(clinicalNotesFile)
+      else sessionStorage.removeItem('billback_clinical_notes')
+
       if (file.type === 'application/pdf' || file.type.startsWith('image/')) {
         const reader = new FileReader()
         reader.onload = async (e) => {
@@ -137,7 +146,7 @@ export default function HomePage() {
       setUploading(false)
       setUploadedFileName('')
     }
-  }, [router])
+  }, [router, clinicalNotesFile, storeClinicalNotes])
 
   const handleDemo = async () => {
     setUploading(true)
@@ -329,6 +338,39 @@ export default function HomePage() {
                   Process Bill
                   <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
                 </button>
+              )}
+            </div>
+
+            {/* Clinical Notes Upload */}
+            <div className="mb-4">
+              <label className="text-xs font-semibold text-[#0F1F3D] mb-1 block">
+                Clinical Notes
+                <span className="ml-1.5 text-[10px] font-normal text-[#9BAABB]">Optional — improves error detection</span>
+              </label>
+              {clinicalNotesFile ? (
+                <div className="flex items-center justify-between gap-3 border border-[#0ABFBC]/40 bg-[#0ABFBC]/[0.04] rounded-xl px-4 py-3">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <FileText className="w-4 h-4 text-[#0ABFBC] flex-shrink-0" />
+                    <span className="text-xs font-medium text-[#0F1F3D] truncate">{clinicalNotesFile.name}</span>
+                  </div>
+                  <button
+                    onClick={() => setClinicalNotesFile(null)}
+                    className="text-[#9BAABB] hover:text-red-400 transition-colors flex-shrink-0"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <label className="flex items-center gap-3 border border-dashed border-gray-200 rounded-xl px-4 py-3 cursor-pointer hover:border-gray-300 hover:bg-gray-50 transition-all duration-200">
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept=".txt,.pdf,.md"
+                    onChange={e => { const f = e.target.files?.[0]; if (f) setClinicalNotesFile(f) }}
+                  />
+                  <FileText className="w-4 h-4 text-[#9BAABB] flex-shrink-0" />
+                  <span className="text-xs text-[#6B82A0]">Upload clinical notes — TXT, PDF, or Markdown</span>
+                </label>
               )}
             </div>
 
