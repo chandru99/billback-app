@@ -66,7 +66,8 @@ export default function ReviewPage() {
     if (!valid.length) { alert('Add at least one claim with a CPT code.'); return }
     setIdentifying(true)
     try {
-      const clinicalNotes = sessionStorage.getItem('billback_clinical_notes') || undefined
+      const clinicalNotesBase64 = sessionStorage.getItem('billback_clinical_notes_b64') || undefined
+      const clinicalNotesMediaType = sessionStorage.getItem('billback_clinical_notes_type') || undefined
       const res = await fetch('/api/identify-errors', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -75,7 +76,8 @@ export default function ReviewPage() {
           dateOfService: parsedBill.dateOfService,
           facility: parsedBill.facility,
           claims: valid,
-          clinicalNotes,
+          clinicalNotesBase64,
+          clinicalNotesMediaType,
         })
       })
       const { success, data, error } = await res.json()
@@ -236,11 +238,21 @@ export default function ReviewPage() {
             {billImage && (
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
                 <p className="text-[10px] uppercase tracking-[2px] text-[#9BAABB] font-semibold mb-3">Original Bill</p>
-                <img
-                  src={billImage}
-                  alt="Original bill"
-                  className="w-full object-contain rounded-xl border border-gray-100"
-                />
+                {billImage.startsWith('data:application/pdf') ? (
+                  <object
+                    data={billImage}
+                    type="application/pdf"
+                    className="w-full h-72 rounded-xl border border-gray-100"
+                  >
+                    <p className="text-xs text-[#6B82A0] p-4">PDF preview not supported in this browser.</p>
+                  </object>
+                ) : (
+                  <img
+                    src={billImage}
+                    alt="Original bill"
+                    className="w-full object-contain rounded-xl border border-gray-100"
+                  />
+                )}
               </div>
             )}
 

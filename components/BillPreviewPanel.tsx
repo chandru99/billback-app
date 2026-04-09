@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { CaseData, Claim, ErrorType } from '@/lib/types'
 import { CheckCircle2, ChevronDown, ChevronUp, FileText, ImageIcon } from 'lucide-react'
 
@@ -33,9 +33,23 @@ const inputCls = "w-full bg-transparent border-b border-gray-200 focus:border-[#
 const numCls   = `${inputCls} tabular-nums`
 
 export default function BillPreviewPanel({ caseData, billImage, onUpdate }: Props) {
-  const [open, setOpen]     = useState(true)
-  const [claims, setClaims] = useState<Claim[]>(caseData.claims)
-  const [saved, setSaved]   = useState(false)
+  const [open, setOpen]       = useState(true)
+  const [claims, setClaims]   = useState<Claim[]>(caseData.claims)
+  const [saved, setSaved]     = useState(false)
+  const [blobUrl, setBlobUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!billImage) return
+    if (billImage.startsWith('data:application/pdf')) {
+      const byteString = atob(billImage.split(',')[1])
+      const bytes = new Uint8Array(byteString.length)
+      for (let i = 0; i < byteString.length; i++) bytes[i] = byteString.charCodeAt(i)
+      const blob = new Blob([bytes], { type: 'application/pdf' })
+      const url = URL.createObjectURL(blob)
+      setBlobUrl(url)
+      return () => URL.revokeObjectURL(url)
+    }
+  }, [billImage])
 
   const updateClaim = (id: string, field: keyof Claim, value: string | number) => {
     setClaims(prev => prev.map(c => {
@@ -56,6 +70,7 @@ export default function BillPreviewPanel({ caseData, billImage, onUpdate }: Prop
   }
 
   const hasImage = !!billImage
+  const isPdf    = billImage?.startsWith('data:application/pdf') ?? false
   const hasText  = !!caseData.rawText
 
   return (
@@ -89,7 +104,15 @@ export default function BillPreviewPanel({ caseData, billImage, onUpdate }: Prop
           {(hasImage || hasText) && (
             <div className="px-6 pt-5 pb-6 border-b border-gray-100 bg-[#F7F9FC]">
               <p className="text-[10px] uppercase tracking-[2px] text-[#9BAABB] font-semibold mb-3">Original Bill</p>
-              {hasImage ? (
+              {hasImage && isPdf ? (
+                <object
+                  data={blobUrl ?? ''}
+                  type="application/pdf"
+                  className="w-full h-72 rounded-xl border border-gray-200 bg-white shadow-sm"
+                >
+                  <p className="text-xs text-[#6B82A0] p-4">PDF preview not supported in this browser.</p>
+                </object>
+              ) : hasImage ? (
                 <img
                   src={billImage!}
                   alt="Original bill"

@@ -66,6 +66,20 @@ export default function HomePage() {
   const [statsVisible, setStatsVisible] = useState(false)
   const statsRef = useRef<HTMLDivElement>(null)
 
+  // Clear all previous session data when landing on the home page
+  useEffect(() => {
+    const keys = [
+      'billback_bill_image',
+      'billback_clinical_notes_b64',
+      'billback_clinical_notes_type',
+      'billback_parsed_bill',
+      'billback_case',
+      'billback_dispute_claim',
+      'billback_clinical_notes',
+    ]
+    keys.forEach(k => sessionStorage.removeItem(k))
+  }, [])
+
   useEffect(() => {
     const observer = new IntersectionObserver(
       ([entry]) => { if (entry.isIntersecting) setStatsVisible(true) },
@@ -84,9 +98,18 @@ export default function HomePage() {
     }
   }, [])
 
-  const storeClinicalNotes = useCallback(async (notesFile: File) => {
-    const text = await notesFile.text()
-    sessionStorage.setItem('billback_clinical_notes', text.slice(0, 20000))
+  const storeClinicalNotes = useCallback((notesFile: File): Promise<void> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const dataUrl = e.target?.result as string
+        const base64 = dataUrl.split(',')[1]
+        sessionStorage.setItem('billback_clinical_notes_b64', base64)
+        sessionStorage.setItem('billback_clinical_notes_type', notesFile.type)
+        resolve()
+      }
+      reader.readAsDataURL(notesFile)
+    })
   }, [])
 
   const processFile = useCallback(async (file: File) => {
@@ -94,7 +117,10 @@ export default function HomePage() {
     setUploadedFileName(file.name)
     try {
       if (clinicalNotesFile) await storeClinicalNotes(clinicalNotesFile)
-      else sessionStorage.removeItem('billback_clinical_notes')
+      else {
+        sessionStorage.removeItem('billback_clinical_notes_b64')
+        sessionStorage.removeItem('billback_clinical_notes_type')
+      }
 
       if (file.type === 'application/pdf' || file.type.startsWith('image/')) {
         const reader = new FileReader()

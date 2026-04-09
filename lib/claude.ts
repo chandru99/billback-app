@@ -74,6 +74,13 @@ CONFIDENCE AND AMBIGUITY RULES:
 - IMPORTANT: Only include line items that have a valid CPT code. Do NOT include rows where the CPT code is missing, blank, or cannot be determined from the document.
 - Return ONLY the JSON object`
 
+function buildFileBlock(base64: string, mediaType: string) {
+  if (mediaType === 'application/pdf') {
+    return { type: 'document' as const, source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: base64 } }
+  }
+  return { type: 'image' as const, source: { type: 'base64' as const, media_type: mediaType as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif', data: base64 } }
+}
+
 export async function parseBillFromBase64(
   base64: string,
   mediaType: string,
@@ -86,13 +93,8 @@ export async function parseBillFromBase64(
     system: PARSE_SYSTEM,
     messages: [{
       role: 'user',
-      content: [
-        {
-          type: 'image',
-          source: { type: 'base64', media_type: mediaType as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif', data: base64 }
-        },
-        { type: 'text', text: 'Analyze this medical bill and return the JSON audit result.' }
-      ]
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      content: [buildFileBlock(base64, mediaType) as any, { type: 'text', text: 'Analyze this medical bill and return the JSON audit result.' }]
     }]
   })
 
@@ -341,9 +343,7 @@ function buildClassifySystem(clinicalNotes?: string): string {
   if (!clinicalNotes || !clinicalNotes.trim()) return CLASSIFY_SYSTEM_BASE
   const notesBlock = `
 CLINICAL DOCUMENTATION PROVIDED:
-The following clinical notes were uploaded by the employer. Use them as the authoritative record of what was documented and performed:
-
-${clinicalNotes.trim()}
+The employer has attached clinical notes as a document. Use them as the authoritative record of what was documented and performed.
 
 Apply these notes when classifying:
 - Upcoding: Does the documented complexity (history, exam, MDM) actually support the billed E/M level? If the notes reflect a lower level of service, flag as upcoding.
@@ -370,10 +370,8 @@ export async function parseBillOnly(base64: string, mediaType: string): Promise<
     system: PARSE_ONLY_SYSTEM,
     messages: [{
       role: 'user',
-      content: [
-        { type: 'image', source: { type: 'base64', media_type: mediaType as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif', data: base64 } },
-        { type: 'text', text: 'Extract all line items from this medical bill.' }
-      ]
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      content: [buildFileBlock(base64, mediaType) as any, { type: 'text', text: 'Extract all line items from this medical bill.' }]
     }]
   })
   const text = response.content[0].type === 'text' ? response.content[0].text : ''
@@ -403,17 +401,24 @@ export async function classifyAndBuildCase(
   rawClaims: Array<{ cpt: string; desc: string; provider: string; date: string; billed: number; units?: number }>,
   meta: { patientName: string; dateOfService: string; facility: string },
   employerId: string,
-  clinicalNotes?: string
+  clinicalNotesDoc?: { base64: string; mediaType: string }
 ): Promise<CaseData> {
+  const systemPrompt = clinicalNotesDoc ? buildClassifySystem('__see_attached_document__') : buildClassifySystem()
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const userContent: any[] = []
+  if (clinicalNotesDoc) {
+    userContent.push(buildFileBlock(clinicalNotesDoc.base64, clinicalNotesDoc.mediaType))
+    userContent.push({ type: 'text', text: 'The document above contains the clinical notes for this patient encounter. Use them when classifying the billing errors below.' })
+  }
+  userContent.push({ type: 'text', text: `Classify these medical bill line items for billing errors:\n\n${JSON.stringify(rawClaims, null, 2)}` })
+
   const response = await client.messages.create({
     model: 'claude-opus-4-5',
     max_tokens: 4000,
     temperature: 0,
-    system: buildClassifySystem(clinicalNotes),
-    messages: [{
-      role: 'user',
-      content: `Classify these medical bill line items for billing errors:\n\n${JSON.stringify(rawClaims, null, 2)}`
-    }]
+    system: systemPrompt,
+    messages: [{ role: 'user', content: userContent }]
   })
   const raw = response.content[0].type === 'text' ? response.content[0].text : ''
   const classified = JSON.parse(raw.replace(/```json|```/g, '').trim())
