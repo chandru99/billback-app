@@ -251,6 +251,20 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-white overflow-x-hidden">
 
+      {/* ── PROCESSING OVERLAY ── */}
+      {uploading && uploadedFileName && (
+        <div className="fixed inset-0 z-[100] bg-[#0A1628]/80 backdrop-blur-sm flex flex-col items-center justify-center gap-5">
+          <div className="relative w-16 h-16">
+            <div className="absolute inset-0 rounded-full border-4 border-white/10" />
+            <div className="absolute inset-0 rounded-full border-4 border-t-[#0ABFBC] border-r-transparent border-b-transparent border-l-transparent animate-spin" />
+          </div>
+          <div className="text-center">
+            <p className="text-white font-semibold text-base mb-1">Analysing your bill…</p>
+            <p className="text-white/40 text-sm">{uploadedFileName}</p>
+          </div>
+        </div>
+      )}
+
       {/* ── NAV ── */}
       <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 md:px-10 py-4 bg-[#0A1628]/90 backdrop-blur-md border-b border-white/[0.06]">
         <Logo variant="light" showBeta />

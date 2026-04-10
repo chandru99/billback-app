@@ -79,7 +79,7 @@ export async function parseBillFromBase64(
 ): Promise<CaseData> {
   const response = await client.messages.create({
     model: 'claude-opus-4-5',
-    max_tokens: 4000,
+    max_tokens: 8000,
     temperature: 0,
     system: PARSE_SYSTEM,
     messages: [{
@@ -102,7 +102,7 @@ export async function parseBillFromText(
 ): Promise<CaseData> {
   const response = await client.messages.create({
     model: 'claude-opus-4-5',
-    max_tokens: 4000,
+    max_tokens: 8000,
     temperature: 0,
     system: PARSE_SYSTEM,
     messages: [{
@@ -187,7 +187,7 @@ DISPUTED LINE ITEM ${i + 1}:
 
   const response = await client.messages.create({
     model: 'claude-opus-4-5',
-    max_tokens: claims.length > 1 ? 2500 : 1500,
+    max_tokens: 4000,
     messages: [{
       role: 'user',
       content: `You are drafting a formal medical billing dispute letter for a self-insured employer. Return ONLY a valid JSON object — no markdown, no code fences, no commentary.
@@ -394,7 +394,7 @@ export async function classifyAndBuildCase(
 
   const response = await client.messages.create({
     model: 'claude-opus-4-5',
-    max_tokens: 4000,
+    max_tokens: 8000,
     temperature: 0,
     system: systemPrompt,
     messages: [{ role: 'user', content: userContent }]
