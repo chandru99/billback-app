@@ -12,7 +12,7 @@ Analyze the provided medical bill or EOB document and extract every line item. F
 Error types to detect:
 - Upcoding: Code billed at higher complexity/level than clinically documented
 - Duplicate Charge: Same CPT code billed more than once on same date by same provider
-- Unbundling: Component procedure billed separately when included in a comprehensive code per NCCI edits
+- Unbundling: A Column 2 component procedure was billed separately when its work is already included in the Column 1 comprehensive code billed on the same date per NCCI PTP edits. ALWAYS flag the Column 2 (component) code — never the Column 1 (comprehensive) code. The Column 1 code is legitimate and must not be touched.
 - Fee Schedule Violation: Amount billed substantially exceeds commercial market rates
 - None: No error detected
 
@@ -22,7 +22,6 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no expla
   "dateOfService": "Month DD, YYYY",
   "facility": "Facility Name",
   "totalAudited": 10,
-  "activeDisputes": 0,
   "claims": [
     {
       "cpt": "99215",
@@ -39,14 +38,6 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no expla
       "claudeConfidence": "high",
       "ambiguous": false
     }
-  ],
-  "activity": [
-    {
-      "type": "teal",
-      "text": "<strong>Bill uploaded</strong> - AI audit initiated.",
-      "amount": null,
-      "ts": "Just now"
-    }
   ]
 }
 
@@ -57,7 +48,7 @@ CRITICAL RULES FOR ALLOWABLE AMOUNTS:
 - Commercial rates are typically 130-200% of Medicare rates depending on CPT code and region
 - For fee schedule violations: allowable = fair commercial market rate, not Medicare rate
 - For upcoding: allowable = commercial rate for the correct lower-level code
-- For unbundling: allowable = 0 (component code should not be billed at all)
+- For unbundling: allowable = 0 on the Column 2 (component) code only — never on the Column 1 (comprehensive) code
 - For duplicates: allowable = 0 for the duplicate line (original charge stands)
 - errorClass must be exactly one of: upcoding, duplicate, unbundling, fee-schedule, none
 - For clean claims: set overcharge to 0, letterContext to null, claudeConfidence to "high", ambiguous to false
@@ -144,7 +135,6 @@ function buildCaseData(parsed: Record<string, unknown>, employerId: string): Cas
   const overcharge = claims.reduce((s, c) => s + (c.overcharge || 0), 0)
   const flagged = claims.filter(c => c.overcharge > 0)
   const weightedRPS = computeWeightedRPS(claims)
-  const activity = ((parsed.activity as CaseData['activity']) || []).map((a: CaseData['activity'][number]) => ({ ...a, id: uuid() }))
 
   return {
     caseId: `BB-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9000) + 1000)}`,
@@ -152,14 +142,12 @@ function buildCaseData(parsed: Record<string, unknown>, employerId: string): Cas
     patientName: (parsed.patientName as string) || 'Unknown Patient',
     dateOfService: (parsed.dateOfService as string) || 'Unknown Date',
     facility: (parsed.facility as string) || 'Unknown Facility',
-    totalRecovered: 0,
     totalFlagged: flagged.length,
     totalAudited: (parsed.totalAudited as number) || claims.length,
     overcharge,
-    activeDisputes: (parsed.activeDisputes as number) || 0,
+    activeDisputes: flagged.length,
     weightedRPS,
     claims,
-    activity,
   }
 }
 
@@ -174,7 +162,7 @@ export async function generateDisputeLetter(
   const getErrorInstruction = (claim: Claim): string => {
     const instructions: Record<string, string> = {
       duplicate: `Cite that CPT ${claim.cpt} was submitted twice on the same date of service by the same provider. Under standard medical billing guidelines, duplicate claim submissions are not payable. The second submission has no clinical or administrative justification and must be reversed.`,
-      unbundling: `Cite the NCCI (National Correct Coding Initiative) bundling edit that includes CPT ${claim.cpt} as a component procedure within the comprehensive code billed on the same date. Component codes cannot be billed separately when a comprehensive code covering the same service has been submitted. No modifier exception applies in this case.`,
+      unbundling: `Cite the NCCI (National Correct Coding Initiative) PTP bundling edit that designates CPT ${claim.cpt} as a Column 2 component procedure whose work is already included in the Column 1 comprehensive code billed on the same date of service. Under NCCI policy, Column 2 component codes cannot be billed separately when the corresponding Column 1 comprehensive code has been submitted by the same provider on the same date. No modifier exception applies in this case. The full billed amount of $${claim.billed} for CPT ${claim.cpt} must be reversed.`,
       upcoding: `Cite that the clinical documentation for this encounter does not support the medical decision-making complexity required for CPT ${claim.cpt} under AMA CPT Evaluation and Management guidelines. The documented visit complexity is consistent with a lower-level code. The billed amount of $${claim.billed} reflects a code level that is not supported by the medical record.`,
       'fee-schedule': `Cite that the billed amount of $${claim.billed} for CPT ${claim.cpt} substantially exceeds the 80th percentile of commercial reimbursement rates for this procedure in this geographic region, as benchmarked against Fair Health commercial data and the employer plan's reasonable and customary reimbursement threshold. Do NOT reference Medicare or CMS rates. This is a self-insured commercial employer plan.`,
       none: claim.details
@@ -281,7 +269,7 @@ You will receive already-extracted and user-verified medical bill line items. Cl
 ERROR TYPES:
 - Upcoding: Code billed at higher complexity than clinically documented
 - Duplicate Charge: Same CPT billed more than once on same date by same provider
-- Unbundling: Component billed separately when included in a comprehensive code per NCCI edits
+- Unbundling: A Column 2 component procedure was billed separately when its work is already included in the Column 1 comprehensive code billed on the same date per NCCI PTP edits. ALWAYS flag the Column 2 (component) code — never the Column 1 (comprehensive) code. The Column 1 code is legitimate and must not be touched.
 - Fee Schedule Violation: Amount exceeds the 80th percentile commercial benchmark by more than 25%
 - None: No error detected
 
@@ -319,7 +307,7 @@ Return all original claim fields PLUS these classification fields for each claim
 
 CRITICAL RULES:
 - Never use Medicare or CMS rates — use 80th percentile COMMERCIAL rates
-- For unbundling: allowable = 0 (the component code should not have been billed — work already compensated by the comprehensive code)
+- For unbundling: allowable = 0 on the Column 2 (component) code only — its work is already compensated by the Column 1 comprehensive code. In the details field, explicitly state which code is Column 1 and which is Column 2, and name the NCCI edit or bundling rule that applies.
 - For duplicates: allowable = 0 for the duplicate line only (the original charge stands)
 - For clean claims: overcharge = 0, letterContext = null
 - If clinical notes are provided and directly contradict a billed code, set claudeConfidence to "high" and ambiguous to false
@@ -327,16 +315,7 @@ CRITICAL RULES:
 
 Return ONLY a valid JSON object (no markdown):
 {
-  "activeDisputes": 0,
-  "claims": [...all claims with original fields + classification fields...],
-  "activity": [
-    {
-      "type": "teal",
-      "text": "<strong>Bill audited</strong> — AI error classification complete.",
-      "amount": null,
-      "ts": "Just now"
-    }
-  ]
+  "claims": [...all claims with original fields + classification fields...]
 }`
 
 function buildClassifySystem(clinicalNotes?: string): string {

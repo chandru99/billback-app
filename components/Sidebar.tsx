@@ -3,6 +3,7 @@
 import { useRouter, usePathname } from 'next/navigation'
 import { LayoutDashboard, ClipboardCheck, FileText, DollarSign, TrendingUp, Users, Settings, ArrowLeft } from 'lucide-react'
 import { CaseData } from '@/lib/types'
+import Logo from '@/components/Logo'
 
 interface Props { caseData: CaseData }
 
@@ -37,9 +38,7 @@ export default function Sidebar({ caseData }: Props) {
       <aside className="hidden md:flex w-[240px] bg-[#0F1F3D] flex-col flex-shrink-0 sticky top-0 h-screen overflow-y-auto">
         {/* Logo */}
         <div className="px-5 py-5 border-b border-white/08">
-          <div className="font-display text-lg font-black text-white tracking-tight">
-            Bill<span className="text-[#0ABFBC]">Back</span> AI
-          </div>
+          <Logo variant="light" />
           <div className="text-[10px] uppercase tracking-[1.5px] text-white/25 mt-0.5">Payment Integrity</div>
         </div>
 

@@ -3,7 +3,7 @@
 import { CaseData, Claim, ErrorClass } from '@/lib/types'
 import { computeWeightedRPS } from '@/lib/rps'
 
-interface Props { caseData: CaseData; onDispute: (claimId: string) => void }
+interface Props { caseData: CaseData; onDispute: (claimId: string) => void; onDisputeAll: () => void }
 
 const ERROR_STYLES: Record<ErrorClass, string> = {
   upcoding:       'bg-[#FDE8E8] text-[#E53935]',
@@ -36,7 +36,7 @@ function RPSBadge({ rps, rpsClass }: { rps: number | null; rpsClass: string | nu
   )
 }
 
-export default function ClaimsTable({ caseData, onDispute }: Props) {
+export default function ClaimsTable({ caseData, onDispute, onDisputeAll }: Props) {
   const flagged = caseData.claims.filter(c => c.overcharge > 0)
   const totalOvercharge = caseData.claims.reduce((s, c) => s + c.overcharge, 0)
   const weightedRPS = computeWeightedRPS(caseData.claims)
@@ -89,7 +89,7 @@ export default function ClaimsTable({ caseData, onDispute }: Props) {
               <div className="font-mono text-base font-bold text-[#E53935]">${totalOvercharge.toLocaleString()}</div>
             </div>
             <button
-              onClick={() => onDispute(caseData.claims.find(c => c.letterContext)?.id ?? '')}
+              onClick={onDisputeAll}
               className="bg-[#0ABFBC] text-[#0F1F3D] text-[11px] font-bold px-3 py-1.5 rounded-md hover:bg-[#07908E] transition-colors"
             >
               Dispute All →
@@ -99,12 +99,21 @@ export default function ClaimsTable({ caseData, onDispute }: Props) {
       </div>
 
       {/* Desktop table view */}
-      <div className="hidden sm:block overflow-x-auto">
+      <div className="hidden sm:block">
         <table className="w-full">
+          <colgroup>
+            <col />                       {/* CPT + desc — flexible */}
+            <col className="w-[160px]" /> {/* Error badge */}
+            <col className="w-[110px]" /> {/* Date */}
+            <col className="w-[150px]" /> {/* Billed / Allowable */}
+            <col className="w-[100px]" /> {/* Overcharge */}
+            <col className="w-[70px]"  /> {/* RPS */}
+            <col className="w-[100px]" /> {/* Action */}
+          </colgroup>
           <thead>
             <tr className="bg-[#F8FAFC] border-b border-[#DDE6EF]">
-              {['CPT Code', 'Error Type', 'Provider', 'Date', 'Billed', 'Allowable', 'Overcharge', 'RPS', ''].map(h => (
-                <th key={h} className="text-left text-[11px] uppercase tracking-wide text-[#6B82A0] font-semibold px-4 py-2.5">
+              {['CPT Code', 'Error Type', 'Date', 'Billed / Allowable', 'Overcharge', 'RPS', ''].map(h => (
+                <th key={h} className="text-left text-[10px] uppercase tracking-wide text-[#6B82A0] font-semibold px-3 py-2.5 whitespace-nowrap">
                   {h}
                 </th>
               ))}
@@ -113,34 +122,33 @@ export default function ClaimsTable({ caseData, onDispute }: Props) {
           <tbody>
             {caseData.claims.map((claim) => (
               <tr key={claim.id} className="border-b border-[#F0F4F8] hover:bg-[#FAFCFF] transition-colors">
-                <td className="px-4 py-3">
+                <td className="px-3 py-2.5">
                   <div className="font-mono text-sm font-bold text-[#0F1F3D]">{claim.cpt}</div>
-                  <div className="text-[11px] text-[#6B82A0] mt-0.5 max-w-[140px] truncate">{claim.desc}</div>
+                  <div className="text-[11px] text-[#6B82A0] mt-0.5 truncate">{claim.desc}</div>
                 </td>
-                <td className="px-4 py-3">
+                <td className="px-3 py-2.5">
                   <ErrorBadge error={claim.error} errorClass={claim.errorClass} />
-                  {claim.overcharge > 0 && (
-                    <div className="text-[10px] text-[#6B82A0] mt-1 max-w-[160px] leading-snug">{claim.details.slice(0, 60)}...</div>
-                  )}
                 </td>
-                <td className="px-4 py-3 text-xs text-[#0F1F3D]">{claim.provider}</td>
-                <td className="px-4 py-3 text-xs text-[#6B82A0] whitespace-nowrap">{claim.date}</td>
-                <td className="px-4 py-3 text-xs font-mono text-[#0F1F3D]">${claim.billed.toLocaleString()}</td>
-                <td className="px-4 py-3 text-xs font-mono text-[#6B82A0]">${claim.allowable.toLocaleString()}</td>
-                <td className="px-4 py-3">
+                <td className="px-3 py-2.5 text-xs text-[#6B82A0] whitespace-nowrap">{claim.date}</td>
+                <td className="px-3 py-2.5">
+                  <span className="text-xs font-mono text-[#0F1F3D]">${claim.billed.toLocaleString()}</span>
+                  <span className="text-[10px] text-[#9BAABB] mx-1">/</span>
+                  <span className="text-xs font-mono text-[#6B82A0]">${claim.allowable.toLocaleString()}</span>
+                </td>
+                <td className="px-3 py-2.5">
                   {claim.overcharge > 0
                     ? <span className="font-mono text-sm font-bold text-[#E53935]">${claim.overcharge.toLocaleString()}</span>
-                    : <span className="font-mono text-xs text-[#6B82A0]">$0</span>
+                    : <span className="font-mono text-xs text-[#9BAABB]">—</span>
                   }
                 </td>
-                <td className="px-4 py-3">
+                <td className="px-3 py-2.5">
                   <RPSBadge rps={claim.rps} rpsClass={claim.rpsClass} />
                 </td>
-                <td className="px-4 py-3">
+                <td className="px-3 py-2.5 text-center">
                   {claim.letterContext && (
                     <button
                       onClick={() => onDispute(claim.id)}
-                      className="bg-[#0ABFBC]/10 text-[#07908E] border border-[#0ABFBC]/25 text-[11px] font-bold px-2.5 py-1 rounded-md hover:bg-[#0ABFBC]/20 transition-colors whitespace-nowrap"
+                      className="bg-[#0ABFBC]/10 text-[#07908E] border border-[#0ABFBC]/25 text-[11px] font-bold px-4 py-1.5 rounded-md hover:bg-[#0ABFBC]/20 transition-colors whitespace-nowrap"
                     >
                       Dispute →
                     </button>
@@ -152,24 +160,23 @@ export default function ClaimsTable({ caseData, onDispute }: Props) {
             {/* Total row */}
             {totalOvercharge > 0 && (
               <tr className="bg-[#F0F7FF] border-t-2 border-[#DDE6EF]">
-                <td colSpan={5} className="px-4 py-3 text-right text-xs font-bold text-[#1A2D5A] uppercase tracking-wide">
+                <td colSpan={4} className="px-3 py-2.5 text-right text-xs font-bold text-[#1A2D5A] uppercase tracking-wide">
                   Total Overcharge
                 </td>
-                <td className="px-4 py-3" />
-                <td className="px-4 py-3">
-                  <span className="font-mono text-base font-bold text-[#E53935]">${totalOvercharge.toLocaleString()}</span>
+                <td className="px-3 py-2.5">
+                  <span className="font-mono text-sm font-bold text-[#E53935]">${totalOvercharge.toLocaleString()}</span>
                 </td>
-                <td className="px-4 py-3">
-                  <span className="bg-[#F5C242]/15 text-[#8B6000] text-xs font-bold font-mono px-2.5 py-1 rounded-full">
+                <td className="px-3 py-2.5">
+                  <span className="bg-[#F5C242]/15 text-[#8B6000] text-xs font-bold font-mono px-2 py-1 rounded-full">
                     {weightedRPS}%
                   </span>
                 </td>
-                <td className="px-4 py-3">
+                <td className="px-3 py-2.5">
                   <button
-                    onClick={() => onDispute(caseData.claims.find(c => c.letterContext)?.id ?? '')}
-                    className="bg-[#0ABFBC] text-[#0F1F3D] text-[11px] font-bold px-3 py-1 rounded-md hover:bg-[#07908E] transition-colors"
+                    onClick={onDisputeAll}
+                    className="bg-[#0ABFBC] text-[#0F1F3D] text-[11px] font-bold px-2.5 py-1 rounded-md hover:bg-[#07908E] transition-colors"
                   >
-                    All →
+                    All
                   </button>
                 </td>
               </tr>

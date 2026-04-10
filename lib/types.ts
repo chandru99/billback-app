@@ -29,14 +29,6 @@ export interface Claim {
   units?: number
 }
 
-export interface ActivityItem {
-  id: string
-  type: 'green' | 'teal' | 'gold' | 'red'
-  text: string
-  amount: string | null
-  ts: string
-}
-
 export interface Employer {
   id: string
   name: string
@@ -51,14 +43,12 @@ export interface CaseData {
   patientName: string
   dateOfService: string
   facility: string
-  totalRecovered: number
   totalFlagged: number
   totalAudited: number
   overcharge: number
   activeDisputes: number
   weightedRPS: number
   claims: Claim[]
-  activity: ActivityItem[]
   rawText?: string
 }
 

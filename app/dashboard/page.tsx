@@ -2,20 +2,21 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { CaseData } from '@/lib/types'
+import { CaseData, Claim } from '@/lib/types'
 import Sidebar from '@/components/Sidebar'
 import Topbar from '@/components/Topbar'
 import KPICards from '@/components/KPICards'
 import ClaimsTable from '@/components/ClaimsTable'
 import RPSPanel from '@/components/RPSPanel'
-import ActivityFeed from '@/components/ActivityFeed'
 import BillPreviewPanel from '@/components/BillPreviewPanel'
+import DisputeModal from '@/components/DisputeModal'
 
 export default function DashboardPage() {
   const router = useRouter()
   const [caseData, setCaseData] = useState<CaseData | null>(null)
   const [billImage, setBillImage] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
+  const [disputeClaim, setDisputeClaim] = useState<Claim | null>(null)
 
   useEffect(() => {
     const stored = sessionStorage.getItem('billback_case')
@@ -29,14 +30,10 @@ export default function DashboardPage() {
     }
   }, [router])
 
-  const handleCaseUpdate = (updated: CaseData) => {
-    setCaseData(updated)
-    sessionStorage.setItem('billback_case', JSON.stringify(updated))
-  }
-
   const openDispute = (claimId: string) => {
-    sessionStorage.setItem('billback_dispute_claim', claimId)
-    router.push('/dispute')
+    if (!caseData) return
+    const claim = caseData.claims.find(c => c.id === claimId)
+    if (claim) setDisputeClaim(claim)
   }
 
   if (!ready || !caseData) {
@@ -55,18 +52,27 @@ export default function DashboardPage() {
       <Sidebar caseData={caseData} />
       <div className="flex-1 flex flex-col min-w-0">
         <Topbar caseData={caseData} onFileDispute={() => router.push('/dispute')} />
-        <main className="flex-1 p-4 md:p-6 overflow-auto pb-20 md:pb-6">
+        <main className="flex-1 p-4 md:p-6 overflow-y-auto pb-20 md:pb-6">
           <KPICards caseData={caseData} />
-          <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-5 mt-5">
-            <div className="flex flex-col gap-5">
-              <BillPreviewPanel caseData={caseData} billImage={billImage} onUpdate={handleCaseUpdate} />
-              <ClaimsTable caseData={caseData} onDispute={openDispute} />
-              <ActivityFeed caseData={caseData} />
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_240px] gap-5 mt-5">
+            <div className="flex flex-col gap-5 min-w-0">
+              <BillPreviewPanel caseData={caseData} billImage={billImage} />
             </div>
             <RPSPanel caseData={caseData} onGenerateDisputes={() => router.push('/dispute')} />
           </div>
+          <div className="mt-5">
+            <ClaimsTable caseData={caseData} onDispute={openDispute} onDisputeAll={() => router.push('/dispute')} />
+          </div>
         </main>
       </div>
+
+      {disputeClaim && (
+        <DisputeModal
+          claim={disputeClaim}
+          caseData={caseData}
+          onClose={() => setDisputeClaim(null)}
+        />
+      )}
     </div>
   )
 }

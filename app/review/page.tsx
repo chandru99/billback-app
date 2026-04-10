@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowRight, ArrowLeft, Plus, Trash2, Loader2 } from 'lucide-react'
+import Logo from '@/components/Logo'
 import { v4 as uuid } from 'uuid'
 
 interface RawClaim {
@@ -113,12 +114,7 @@ export default function ReviewPage() {
             <ArrowLeft className="w-4 h-4" /> Back
           </button>
           <div className="w-px h-4 bg-gray-200" />
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-[#0F1F3D] rounded-md flex items-center justify-center">
-              <span className="text-[#0ABFBC] text-[10px] font-black">B</span>
-            </div>
-            <span className="text-sm font-bold text-[#0F1F3D]">BillBack AI</span>
-          </div>
+          <Logo size="sm" />
         </div>
         <button
           onClick={identifyErrors}
@@ -157,14 +153,14 @@ export default function ReviewPage() {
                 <p className="text-sm font-medium text-[#0F1F3D]">{parsedBill.dateOfService}</p>
               </div>
               <div>
-                <p className="text-[10px] uppercase tracking-wider text-[#9BAABB] font-semibold mb-0.5">Facility</p>
+                <p className="text-[10px] uppercase tracking-wider text-[#9BAABB] font-semibold mb-0.5">Hospital / Facility</p>
                 <p className="text-sm font-medium text-[#0F1F3D]">{parsedBill.facility}</p>
               </div>
             </div>
 
             {/* Table header */}
-            <div className="grid grid-cols-[80px_1fr_130px_100px_90px_36px] gap-x-4 px-6 py-3 border-b border-gray-100">
-              {['CPT', 'Description', 'Provider', 'Date', 'Billed ($)', ''].map(h => (
+            <div className="grid grid-cols-[80px_1fr_100px_90px_36px] gap-x-4 px-6 py-3 border-b border-gray-100">
+              {['CPT', 'Description', 'Date', 'Billed ($)', ''].map(h => (
                 <span key={h} className="text-[10px] font-semibold text-[#9BAABB] uppercase tracking-wider">{h}</span>
               ))}
             </div>
@@ -174,7 +170,7 @@ export default function ReviewPage() {
               {claims.map(claim => (
                 <div
                   key={claim.id}
-                  className="grid grid-cols-[80px_1fr_130px_100px_90px_36px] gap-x-4 items-center px-6 py-3 hover:bg-gray-50/60 transition-colors group"
+                  className="grid grid-cols-[80px_1fr_100px_90px_36px] gap-x-4 items-center px-6 py-3 hover:bg-gray-50/60 transition-colors group"
                 >
                   <input
                     className={`${inputCls} font-mono`}
@@ -187,12 +183,6 @@ export default function ReviewPage() {
                     placeholder="Description"
                     value={claim.desc}
                     onChange={e => updateClaim(claim.id, 'desc', e.target.value)}
-                  />
-                  <input
-                    className={inputCls}
-                    placeholder="Provider"
-                    value={claim.provider}
-                    onChange={e => updateClaim(claim.id, 'provider', e.target.value)}
                   />
                   <input
                     className={inputCls}

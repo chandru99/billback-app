@@ -159,16 +159,10 @@ export const DEMO_CASES: Record<string, CaseData> = {
     patientName: 'James R. Mitchell',
     dateOfService: 'February 14, 2024',
     facility: 'NorthStar Health System',
-    totalRecovered: 247340,
     totalFlagged: 91,
     totalAudited: 2340,
     overcharge: 9630,
     activeDisputes: 7,
-    activity: [
-      { id: 'a1', type: 'green', text: '<strong>$1,840 recovered</strong> — Dispute settled for CPT 36415 (Quest Diagnostics). Full amount conceded by payer.', amount: '+$1,840', ts: 'Today · 09:14 AM' },
-      { id: 'a2', type: 'teal',  text: '<strong>3 new claims flagged</strong> — AI audit completed for February EOB batch. RPS scoring in progress.', amount: null, ts: 'Today · 07:30 AM' },
-      { id: 'a3', type: 'gold',  text: '<strong>$5,200 recovered</strong> — CPT 27447 unbundling settlement accepted by Summit Orthopedics.', amount: '+$5,200', ts: 'Yesterday · 4:52 PM' },
-    ],
   }, meridianRaw),
 
   pinnacle: buildCase({
@@ -177,16 +171,10 @@ export const DEMO_CASES: Record<string, CaseData> = {
     patientName: 'Sarah K. Thornton',
     dateOfService: 'March 2, 2024',
     facility: 'Riverside Medical Center',
-    totalRecovered: 589100,
     totalFlagged: 218,
     totalAudited: 6820,
     overcharge: 14820,
     activeDisputes: 12,
-    activity: [
-      { id: 'p-a1', type: 'green', text: '<strong>$8,410 recovered</strong> — Q4 batch dispute settlement with Riverside Medical Center.', amount: '+$8,410', ts: 'Today · 11:22 AM' },
-      { id: 'p-a2', type: 'red',   text: '<strong>Dispute escalated</strong> — CPT 29827 claim denied by payer. Escalating to state insurance commissioner.', amount: null, ts: 'Today · 08:45 AM' },
-      { id: 'p-a3', type: 'teal',  text: '<strong>12 new claims flagged</strong> — March EOB batch processed. 4 high-confidence disputes ready.', amount: null, ts: 'Yesterday · 3:18 PM' },
-    ],
   }, pinnacleRaw),
 
   coastal: buildCase({
@@ -195,14 +183,9 @@ export const DEMO_CASES: Record<string, CaseData> = {
     patientName: 'Marcus D. Rivera',
     dateOfService: 'January 28, 2024',
     facility: 'Pacific Surgery Center',
-    totalRecovered: 128900,
     totalFlagged: 44,
     totalAudited: 1180,
     overcharge: 6240,
     activeDisputes: 3,
-    activity: [
-      { id: 'co-a1', type: 'green', text: '<strong>$3,140 dispute filed</strong> — CPT 70553 fee schedule violation submitted to Pacific Imaging Center.', amount: '+$3,140', ts: 'Today · 10:05 AM' },
-      { id: 'co-a2', type: 'teal',  text: '<strong>January EOB processed</strong> — 44 claims audited, 2 errors detected.', amount: null, ts: 'Yesterday · 2:30 PM' },
-    ],
   }, coastalRaw),
 }
