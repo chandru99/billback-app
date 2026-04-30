@@ -3,16 +3,16 @@
 @tailwind utilities;
 
 :root {
-  --font-dm-sans: 'DM Sans', sans-serif;
-  --font-dm-mono: 'DM Mono', monospace;
-  --font-fraunces: 'Fraunces', serif;
+  --font-space-grotesk: 'Space Grotesk', sans-serif;
+  --font-jetbrains: 'JetBrains Mono', monospace;
+  --font-syne: 'Syne', sans-serif;
 }
 
 * { box-sizing: border-box; }
 
 body {
-  background: #F0F4F8;
-  color: #0F1F3D;
+  background: #F5F3EE;
+  color: #1A1B20;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -21,18 +21,8 @@ body {
 }
 
 @keyframes pulse-dot {
-  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(10, 191, 188, 0.4); }
-  50% { opacity: 0.5; box-shadow: 0 0 0 6px rgba(10, 191, 188, 0); }
-}
-
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(12px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes count-up {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(232, 160, 32, 0.4); }
+  50% { opacity: 0.5; box-shadow: 0 0 0 6px rgba(232, 160, 32, 0); }
 }
 
 .animate-spin-slow {
@@ -43,10 +33,6 @@ body {
   animation: spin 0.9s linear infinite reverse;
 }
 
-.animate-fade-up {
-  animation: fadeUp 0.45s ease forwards;
-}
-
 .animate-pulse-dot {
   animation: pulse-dot 1.5s ease-in-out infinite;
 }
@@ -54,14 +40,24 @@ body {
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #DDE6EF; border-radius: 100px; }
-::-webkit-scrollbar-thumb:hover { background: #B0C4D8; }
+::-webkit-scrollbar-thumb { background: #D6D1C8; border-radius: 100px; }
+::-webkit-scrollbar-thumb:hover { background: #C8841A40; }
 
 /* Typewriter cursor */
 .typewriter::after {
   content: '|';
   animation: blink 0.7s step-end infinite;
-  color: #0ABFBC;
+  color: #E8A020;
+}
+
+.ledger-lines {
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 47px,
+    rgba(255, 255, 255, 0.028) 47px,
+    rgba(255, 255, 255, 0.028) 48px
+  );
 }
 
 @keyframes blink {

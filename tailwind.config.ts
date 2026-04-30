@@ -4,20 +4,24 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        navy: { DEFAULT:'#0F1F3D', 2:'#1A2D5A' },
-        teal: { DEFAULT:'#0ABFBC', 2:'#07908E' },
+        ink: { DEFAULT:'#0D0F14' },
+        fog: { DEFAULT:'#F5F3EE', 2:'#EAE7E0', border:'#D6D1C8' },
+        amber: { DEFAULT:'#E8A020', 2:'#C8841A' },
+        // Legacy aliases — keep for dashboard/app pages that still use them
+        navy: { DEFAULT:'#0D0F14', 2:'#161920' },
+        teal: { DEFAULT:'#E8A020', 2:'#C8841A' },
         bb: {
-          navy:'#0F1F3D', navy2:'#1A2D5A',
-          teal:'#0ABFBC', teal2:'#07908E',
-          blue:'#1A6EA8', gold:'#F5C242',
-          red:'#E53935', green:'#00BFA5',
-          bg:'#F0F4F8', border:'#DDE6EF', muted:'#6B82A0'
+          navy:'#0D0F14', navy2:'#161920',
+          teal:'#E8A020', teal2:'#C8841A',
+          blue:'#3B82B8', gold:'#E8A020',
+          red:'#D94040', green:'#2D9E6B',
+          bg:'#F5F3EE', border:'#D6D1C8', muted:'#8B8D96'
         }
       },
       fontFamily: {
-        sans:    ['"DM Sans"', 'sans-serif'],
-        mono:    ['"DM Mono"', 'monospace'],
-        display: ['Fraunces', 'serif'],
+        sans:    ['"Space Grotesk"', 'sans-serif'],
+        mono:    ['"JetBrains Mono"', 'monospace'],
+        display: ['Syne', 'sans-serif'],
       }
     }
   },
